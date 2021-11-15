@@ -44,7 +44,7 @@ if(preprocess){
 bcr_clusts <- bcr[,c(1,1)]
 colnames(bcr_clusts) <- c('cell', 'cluster')
 
-assignments <- cactus_clone_assignment(A = t(A_clone[,2:ncol(A_clone)]),
+assignments <- cactusx_clone_assignment(A = t(A_clone[,2:ncol(A_clone)]),
                                        D = t(D_clone[,2:ncol(D_clone)]),
                                        Config = Z[[1]],
                                        BCR = bcr_clusts,
