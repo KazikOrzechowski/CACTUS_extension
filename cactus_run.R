@@ -1,4 +1,4 @@
-source("cactus_clone_assignment.R")
+source("cactusx_clone_assignment.R")
 
 #set paths for data
 treePath <- "~/RStudio/tree/S144/Z.rds"
