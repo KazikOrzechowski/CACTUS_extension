@@ -2,8 +2,6 @@ library('igraph')
 library('extraDistr')
 library('matrixStats')
 
-#num of clusters
-Q <- 3
 
 #bcr len
 L <- 5
@@ -24,27 +22,13 @@ g <- data.frame('A'=c(5,5,1,1,1),
 alpha_0 <- 2
 
 
-#B is a list len Q, each entry is L*4 probablities of each nuc at spot l of cluster q
-simulate_B <- function(){
-  B <- list()
-  for(q in 1:length(clusters_)){
-    temp <- t(sapply(1:L, function(l){sample_dirichlet(1, g[l,])}))
-    colnames(temp) <- nuc
-    B[[q]] <- temp
-  }
-  return(B)
-}
-
-
 #simulate the clustering
 simulate_t_and_cl <- function(){
   t_ <- 1:M
   clusters_ <- list()
   clusters_[[1]] <- 1
   for(i in 2:M){
-    p <- sapply(1:length(clusters_), function(j){
-                                                length(clusters_[[j]])/(i-1+alpha_0)
-                                                })
+    p <- sapply(clusters_, function(j){length(j)/(i-1+alpha_0)})
     p <- append(p, alpha_0/(i-1+alpha_0))
     t_[i] <- rcat(1,p)
     if(t_[i]>length(clusters_)){
@@ -53,7 +37,20 @@ simulate_t_and_cl <- function(){
       clusters_[[t_[i]]] <- append(x=clusters_[[t_[i]]], values=i)
     }
   }
-  return(list('clust'=clusters_, 't'=t_))
+  list('clust'=clusters_, 't'=t_)
+}
+
+
+
+#B is an array dim M*L*4, each entry is L*4 probablities of each nuc at spot l of cluster m
+simulate_B <- function(){
+  B <- array(dim=c(M, L, 4))
+  for(q in 1:length(clusters_)){
+    temp <- t(sapply(1:L, function(l){sample_dirichlet(1, g[l,])}))
+    colnames(temp) <- nuc
+    B[q, ,] <- temp
+  }
+  B
 }
 
 
@@ -65,23 +62,31 @@ simulate_t_and_cl <- function(){
 
 #simulate the BCR seqs of cells
 simulate_BCR <- function(){
-  BCR <- list()
+  As <- Cs <- Gs <- Ts <- data.frame()
+  BCR <- list('A'=As, 'C'=Cs, 'G'=Gs, 'T'=Ts)
   for(i in 1:M){
-    temp <- t(sapply(1:L, function(l){rmultinom(1, 1, B[[t_[i]]][l,])}))
+    temp <- t(sapply(1:L, function(l){rmultinom(1, 1, B[t_[i],l,])}))
     colnames(temp) <- nuc
-    BCR[[i]] <- temp
+    for(n in nuc){
+      if(length(which(temp[,n]==1,arr.ind=TRUE))){
+        BCR[[n]] <- rbind(BCR[[n]], 
+                          data.frame(cell=i, position=which(temp[,n]>0, arr.ind=TRUE)))
+      }
+    }
   }
-  return(BCR)
+  BCR
 }
 
 
 #calculate BCR likelihood
 calc_bcr_like <- function(){
   like <- 1
-  for(j in 1:M){
-    like <- product( B[[ t_[[j]] ]][ BCR[[ j ]]==1 ]) * like
+  for(n in 1:4){
+    clust_vec <- t_[BCR[[n]]$cell]
+    mat_inds <- clust_vec + BCR[[n]]$position*10 - 10
+    like <- product(B[,, n][mat_inds]) * like
   }
-  return(like)
+  like
 }
 
 
@@ -98,5 +103,4 @@ B <- simulate_B()
 BCR <- simulate_BCR()
 
 calc_bcr_like()
-
 
