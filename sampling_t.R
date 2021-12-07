@@ -1,8 +1,3 @@
-source('scRNA_sim.R')
-
-
-#number of intermediate Gibbs sampling steps
-i_G <- 3
 
 
 try_split <- function(){
@@ -50,36 +45,30 @@ try_split <- function(){
   t_propose <- propose$t
   B_propose <- propose$B
   I_propose <- propose$I
-  log_p_propose <- propose$log_p
-  log_d_propose <- propose$log_d
+  log_p <- propose$log_p
   n_proposed <- propose$n
   
   #calc M-H acceptance prob
-  MH <- calc_MH_split(chosen_ind, chosen_clust,
-                log_d_propose, log_p_propose,
-                n_proposed, t_propose,
-                B_propose, I_propose,
-                X_bcr, B_split)
+  accept <- accept_MH_split(X_bcr, t_propose,
+                      chosen_clust, n_proposed, log_p)
   
   
   #if accepted, assign first empty cluster to proposed cluster with cell i
-  print(MH)
-  print(MH$acc * MH$ext)
-  if(runif(1) < min(1, MH$acc * MH$ext)){
+  if(accept){
     print('Accepted')
     first_empty <- which(sapply(clusters_, length)==0, arr.ind=TRUE)[1]
     cluster_i <- chosen_clust[t_propose$clust == 0]
     cluster_j <- chosen_clust[t_propose$clust == 1]
-    t_[cluster_i] <- ifelse(is.na(first_empty), length(clusters_)+1, first_empty)
-    B[t_[i],,] <- B_propose[1,,]
-    B[t_[j],,] <- B_propose[2,,]
-    I[t_[i]] <- I_propose[1]
-    I[t_[j]] <- I_propose[2]
-    clusters_[[t_[j]]] <- cluster_j
+    t_[cluster_i] <<- ifelse(is.na(first_empty), length(clusters_)+1, first_empty)
+    B[t_[i],,] <<- B_propose[1,,]
+    B[t_[j],,] <<- B_propose[2,,]
+    I[t_[i]] <<- I_propose[1]
+    I[t_[j]] <<- I_propose[2]
+    clusters_[[t_[j]]] <<- cluster_j
     if(is.na(first_empty)){
-      clusters_ <- append(clusters_, cluster_i)
+      clusters_[[length(clusters_)+1]] <<- cluster_i
     }else{
-      clusters_[[first_empty]] <- cluster_i
+      clusters_[[first_empty]] <<- cluster_i
     }
   }
   
@@ -93,10 +82,10 @@ try_split <- function(){
        't_prop'= t_propose,
        'B_prop'= B_propose,
        'I_prop'= I_propose,
-       'log_p'=log_p_propose,
-       'log_d'=log_d_propose,
-       'MH'=MH)
+       'log_p'=log_p,
+       'accepted'=accept)
 }
+
 
 try_merge <- function(){
   #pick two clusters to merge inversely proportional to their size
@@ -137,8 +126,22 @@ try_merge <- function(){
   #we do not need to launch merge in this case, as the probabilities of parameters in proposed state
   #are independent from the launch state
   proposed <- launch_merge(X_bcr, union(cluster_i, cluster_j))
-  B_proposed <- proposed_$B
-  I_proposed <- proposed_$I
+  B_proposed <- proposed$B
+  I_proposed <- proposed$I
+  
+  accept <- accept_MH_merge(X_bcr, t_split, i, j, 
+                            cluster_i, cluster_j,
+                            n_split, B_split, I_split)
+  
+  print(accept)
+  if(accept){
+    new_cluster <- union(cluster_i, cluster_j)
+    B[t_[j],,] <<- B_proposed
+    I[t_[j]] <<- I_proposed
+    clusters_[[t_[j]]] <<- new_cluster
+    clusters_[[t_[i]]] <<- list()
+    t_[cluster_i] <<- t_[j]
+  }
   
   list(
     'cells'=c(i,j),
@@ -150,6 +153,7 @@ try_merge <- function(){
     'I_merge'=I_proposed
   )
 }
+
 
 launch_split <- function(i,j,chosen_clust, X_bcr){
   #randomly assign each cell from cluster to i or j (these stay the same)
@@ -177,10 +181,10 @@ launch_split <- function(i,j,chosen_clust, X_bcr){
       old_c <- t_split[str(cell),]
       #here we will need to incorporate the model scRNA likelihood
       log_p <- sapply(1:2, function(i_){
-                         log(n_split[i_]-(old_c==i_-1))+
-                         sum(log(B_split[i_,,][X_bcr[[str(cell)]]==1]))+
-                         sum(dbinom(A[cell,], D[cell,], C[,I_split[i_]]*theta1+(1-C[,I_split[i_]])*theta0, log=TRUE))
-                  })
+                         log(n_split[i_]-(old_c==i_-1)) +
+                         loglike_BCR(B_split[i_,,], X_bcr[[str(cell)]]) +
+                         loglike_RNA(cell, I_split[i_])
+                         })
       p <- exp(log_p - max(log_p))
       new_c <- rbinom(1, 1, prob=p[2]/sum(p))
       if(new_c != old_c){
@@ -195,10 +199,7 @@ launch_split <- function(i,j,chosen_clust, X_bcr){
     }
     for(i_ in 1:2){
       log_like <- sapply(1:K, function(k){
-        sum(dbinom(t(A[chosen_clust[t_split$clust==i_-1],]),
-                   t(D[chosen_clust[t_split$clust==i_-1],]), 
-                   prob=C[,k]*theta1+(1-C[,k])*theta0,
-                   log=TRUE))
+        loglike_RNA(chosen_clust[t_split$clust==i_-1],k)
         })
       #here we need to amplify, to not get zeros
       log_like <- log_like - max(log_like)
@@ -209,16 +210,12 @@ launch_split <- function(i,j,chosen_clust, X_bcr){
   list('B'=B_split, 't'=t_split, 'I'=I_split, 'n'=n_split)
 }
 
+
 launch_merge <- function(X_bcr, chosen_clust){
   up_prior <- as.matrix(g) + Reduce('+', X_bcr)
   B_merge <- t(sapply(1:L, function(l){sample_dirichlet(1, up_prior[l,])}))
   
-  log_like <- sapply(1:K, function(k){
-    sum(dbinom(t(A[chosen_clust,]),
-               t(D[chosen_clust,]), 
-               prob=C[,k]*theta1+(1-C[,k])*theta0,
-               log=TRUE))
-  })
+  log_like <- sapply(1:K, function(k){loglike_RNA(chosen_clust,k)})
   log_like <- log_like - max(log_like)
   I_merge <- rcat(1, exp(log_like))
   
@@ -231,15 +228,14 @@ propose_split <- function(chosen_clust, i, j,
                           B_split, X_bcr,
                           I_split){
   log_p_propose <- 0
-  log_d_propose <- 0
   
   for(cell in setdiff(chosen_clust,c(i,j))){
     old_c <- t_split[str(cell),]
     #here we will need to incorporate the model scRNA likelihood
     log_p <- sapply(1:2, function(i_){
-      log(n_split[i_]-(old_c==i_-1))+
-        sum(log(B_split[i_,,][X_bcr[[str(cell)]]==1]))+
-        sum(dbinom(A[cell,], D[cell,], C[,I_split[i_]]*theta1+(1-C[,I_split[i_]])*theta0, log=TRUE))
+        log(n_split[i_]-(old_c==i_-1))+
+        loglike_BCR(B_split[i_,,], X_bcr[[str(cell)]])+
+        loglike_RNA(cell, I_split[i_])
     })
     p <- exp(log_p - max(log_p))
     new_c <- rbinom(1, 1, prob=p[2]/sum(p))
@@ -248,115 +244,168 @@ propose_split <- function(chosen_clust, i, j,
       n_split[new_c+1] <- n_split[new_c+1] + 1
       t_split[str(cell),] <- new_c
     }
+    
     log_p_propose <- log_p_propose + log(p[new_c+1]/sum(p))
   }
   
   for(i_ in 1:2){
     up_prior <- as.matrix(g) + Reduce('+', X_bcr[t_split$clust==i_-1])
+    
     B_split[i_,,] <- t(sapply(1:L, function(l){sample_dirichlet(1, up_prior[l,])}))
-    log_d_propose <- log_d_propose + sum(sapply(1:L, function(l){ddirichlet(
-                                                                    B_split[i_,l,],
-                                                                    up_prior[l,],
-                                                                    log=TRUE)}))
   }
   
   for(i_ in 1:2){
     log_like <- sapply(1:K, function(k){
-      sum(dbinom(t(A[chosen_clust[t_split$clust==i_-1],]),
-                 t(D[chosen_clust[t_split$clust==i_-1],]), 
-                 prob=C[,k]*theta1+(1-C[,k])*theta0,
-                 log=TRUE))
-    })
+                              loglike_RNA(chosen_clust[t_split$clust==i_-1], k)
+      })
+    
     #here we need to amplify, to not get zeros
     like <- exp(log_like - max(log_like))
     I_split[i_] <- rcat(1, like)
-    log_p_propose <- log_p_propose + log(like[I_split[i_]] / sum(like))
   }
   
   list('t'=t_split,
        'B'=B_split,
        'I'=I_split,
        'log_p'=log_p_propose,
-       'log_d'=log_d_propose,
        'n'=n_split)
 }
 
-calc_MH_split <- function(chosen_ind, chosen_clust,
-                          log_d_propose, log_p_propose,
-                          n_proposed, t_propose,
-                          B_propose, I_propose,
-                          X_bcr, B_split){
-  #calculate q_ratio, the fraction of proposal densities
-  up_prior <- as.matrix(g) + Reduce('+', X_bcr)
-  log_d <- sum(sapply(1:L, function(l){ddirichlet(B[chosen_ind,l,],
-                                                  up_prior[l,],
-                                                  log=TRUE)}))
-  
-  log_like <- sapply(1:K, function(k){sum(dbinom(t(A[chosen_clust,]),
-                                                 t(D[chosen_clust,]), 
-                                                 prob=C[,k]*theta1+(1-C[,k])*theta0,
-                                                 log=TRUE))
-  })
-  like <- exp(log_like - max(log_like))
-  log_p <- log(like[I[chosen_ind]] / sum(like))
-  
-  q_ratio <- exp(log_d - log_d_propose) * exp(log_p - log_p_propose) 
-  
-  #calculate p_ratio, the ratio of prior densities
-  log_d_prior <- 0
-  for(i_ in 1:2){
-    log_d_prior <- log_d_prior + sum(sapply(1:L, function(l){ddirichlet(
-                                                                        B_split[i_,l,],
-                                                                        g[l,],
-                                                                        log=TRUE)}))
-  }
-  
-  log_d_prior <- log_d_prior - sum(sapply(1:L, function(l){ddirichlet(
-                                                                      B[chosen_ind,l,],
-                                                                      g[l,],
-                                                                      log=TRUE
-                                                                      )}))
-  
-  p_ratio <- alpha_0 / K / choose(sum(n_proposed)-2, n_proposed[1]-1) / (sum(n_proposed)-1) * exp(log_d_prior)
-  
-  #calculate l_ratio, the ratio of likelihoods
-  log_l_ratio <- 0
-  for(cell in chosen_clust){
-    log_l_ratio <- log_l_ratio + sum(log(B_propose[t_propose[str(cell),]+1,,][X_bcr[[str(cell)]]==1])) - sum(log(B[t_[cell],,][X_bcr[[str(cell)]]==1]))
-    old_k <- I[t_[cell]]
-    new_k <- I_propose[t_propose[str(cell),]+1]
-    if(old_k != new_k){
-      log_l_ratio <- log_l_ratio + sum(dbinom(A[cell,], D[cell,], prob=C[,new_k]*theta1+(1-C[,new_k])*theta0, log=TRUE)) - sum(dbinom(A[cell,], D[cell,], prob=C[,old_k]*theta1+(1-C[,old_k])*theta0, log=TRUE))
-    }
-  }
-  l_ratio <- exp(log_l_ratio)
-  
-  acc <- q_ratio * l_ratio * p_ratio
-  
-  ext <- M * (sum(n_proposed)- 1)  / product(n_proposed[1]) / (sum(sapply(clusters_, inv_len)) ** 2)
 
-  list('q'=q_ratio,
-       'p'=p_ratio,
-       'l'=l_ratio, 
-       'acc'=acc,
-       'ext'=ext)
+accept_MH_split <- function(X_bcr, t_propose,
+                            chosen_clust, 
+                            n_proposed, log_p){
+  
+  #calc log of fraction p_bcr
+  upm <- as.matrix(g) + Reduce('+', X_bcr)
+  upi <- as.matrix(g) + Reduce('+', X_bcr[t_propose$clust==0])
+  upj <- as.matrix(g) + Reduce('+', X_bcr[t_propose$clust==1])
+  
+  log_pbcr <- sum(lgamma(upi)) + 
+              sum(lgamma(upj)) -
+              sum(lgamma(upm)) - 
+              sum(lgamma(g)) +
+              sum(lgamma(apply(upm,1,sum))) +
+              sum(lgamma(apply(g,1,sum))) -
+              sum(lgamma(apply(upi,1,sum))) - 
+              sum(lgamma(apply(upj,1,sum)))
+  
+  #calc log of fraction p_scRNA
+  
+  m_log <- m_loglike_RNA(chosen_clust)
+  
+  m_log_i <- m_loglike_RNA(chosen_clust[t_propose$clust==0])
+  m_log_j <- m_loglike_RNA(chosen_clust[t_propose$clust==1])
+  
+  l_prna <- logSumExp(m_log_i) + logSumExp(m_log_j) - logSumExp(m_log)
+  
+  #calc log of fraction p_T
+  log_pt <- -lchoose(sum(n_proposed)-2, n_proposed[1]-1) - log(sum(n_proposed)-1) - log_p
+
+  #calc the factor
+  R <- alpha_0 / K * (sum(n_proposed)-1) * n_proposed[1] * n_proposed[2] / M / (sum(sapply(clusters_, inv_len))**2)
+  
+  #calc log of acceptance probability
+  log_acc <- log_pbcr + l_prna + log_pt + log(R)
+  
+  log_acc <- max(-50, log_acc)
+  
+  runif(1) < exp(log_acc)
 }
+
+
+accept_MH_merge <- function(X_bcr, t_split, i, j,
+                            cluster_i, cluster_j,
+                            n_split, B_split, I_split){
+  
+  log_p_propose <- 0
+  
+  for(cell in setdiff(union(cluster_i, cluster_j),c(i,j))){
+    old_c <- t_split[str(cell),]
+    #here we will need to incorporate the model scRNA likelihood
+    log_p <- sapply(1:2, function(i_){
+      log(n_split[i_]-(old_c==i_-1))+
+        loglike_BCR(B_split[i_,,], X_bcr[[str(cell)]])+
+        loglike_RNA(cell, I_split[i_])
+    })
+    p <- exp(log_p - max(log_p))
+    
+    new_c <- ifelse(t_[cell]==t_[i], 0, 1)
+    
+    if(new_c != old_c){
+      n_split[old_c+1] <- n_split[old_c+1] - 1
+      n_split[new_c+1] <- n_split[new_c+1] + 1
+    }
+    
+    log_p_propose <- log_p_propose + log(p[new_c+1]/sum(p))
+  }
+  
+  #calc log of fraction p_bcr
+  upm <- as.matrix(g) + Reduce('+', X_bcr)
+  upi <- as.matrix(g) + Reduce('+', X_bcr[str(cluster_i)])
+  upj <- as.matrix(g) + Reduce('+', X_bcr[str(cluster_j)])
+  
+  log_pbcr <- sum(lgamma(upm)) +
+              sum(lgamma(g)) -
+              sum(lgamma(upi)) - 
+              sum(lgamma(upj)) +
+              sum(lgamma(apply(upi,1,sum))) +
+              sum(lgamma(apply(upj,1,sum))) -
+              sum(lgamma(apply(upm,1,sum))) -
+              sum(lgamma(apply(g,1,sum))) 
+              
+  
+  #calc log of fraction p_scRNA
+  
+  m_log <- m_loglike_RNA(union(cluster_i, cluster_j))
+  
+  m_log_i <- m_loglike_RNA(cluster_i)
+  m_log_j <- m_loglike_RNA(cluster_j)
+  
+  l_prna <- logSumExp(m_log) - logSumExp(m_log_i) - logSumExp(m_log_j) 
+  
+  #calc log of fraction p_T
+  log_pt <- lchoose(sum(n_split)-2, n_split[1]-1) + log(sum(n_split)-1) + log_p_propose
+  
+  #calc the factor
+  R <- K / alpha_0 / (sum(n_split)-1) * n_split[1]**2 * n_split[2]**2 / M * (sum(sapply(clusters_, inv_len))**2)
+  
+  #calc log of acceptance probability
+  log_acc <- log_pbcr + l_prna + log_pt + log(R)
+  
+  print(l_prna)
+  log_acc <- max(-50, log_acc)
+  
+  runif(1) < exp(log_acc)
+}
+
 
 #helpful funcs
 str <- function(x) as.character(x)
+
+
 resample <- function(x) x[sample.int(length(x), 1)]
+
+
 inv_len <- function(x) ifelse(length(x)==0, 0, 1/length(x))
 
-unknown <- simulate_t_and_cl()
 
-t_true <- t_
-clusters_true <- clusters_
+loglike_RNA <- function(cells, clone){
+  sum(dbinom(A[,cells],
+             D[,cells], 
+             prob=C[,clone]*theta1+(1-C[,clone])*theta0,
+             log=TRUE))
+}
 
-t_ <- unknown$t
-clusters_ <- unknown$clust
 
-a <- try_split()
+m_loglike_RNA <- function(cells){
+  sapply(1:K, function(k){sum(log(
+                 dbinom(A[,cells], D[,cells],
+                 prob=C[,k]*theta1 + (1-C[,k])*theta0)*exp(3)
+                 )) - 3*length(cells)*N})
+}
 
-b <- try_merge()
 
-I[t_true[897]]
+loglike_BCR <- function(B, bcr){
+  sum(log(B[bcr==1]))
+}

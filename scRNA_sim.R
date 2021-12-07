@@ -27,11 +27,11 @@ p <- abs(Omega-relax_rate)
 C <- array(rbinom(N*K, 1, prob=p), dim=c(N,K))
 
 #cluster-clone assignment
-I <- rcat(length(clusters_), Psi)
+I <- 1:M
+I[1:length(clusters_)] <- rcat(length(clusters_), Psi)
 
 #All read counts and mutation reads simulation
-D <- array(rpois(M*N, 3), dim=c(M, N))
+D <- array(rpois(N*M, 1), dim=c(N, M))
 p <- C[,I[t_]]*theta1 + (1-C[,I[t_]])*theta0
-A <- array(rbinom(M*N, D, prob=t(p)), dim=c(M,N))
-notA <- D - A
+A <- array(rbinom(N*M, D, prob=p), dim=c(N,M))
 

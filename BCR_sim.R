@@ -12,13 +12,13 @@ M <- 1000
 nuc <- c('A', 'C', 'G', 'T')
 
 #g are the prior parameters of nuc probabilities. dim(g) is L*4
-g <- data.frame('A'=rpois(L,2)+1, 
-                'C'=rpois(L,3)+1,
-                'G'=rpois(L,1)+1,
-                'T'=rpois(L,1)+1)
+g <- data.frame('A'=rpois(L,1/2)+1, 
+                'C'=rpois(L,10)+1,
+                'G'=rpois(L,1/2)+1,
+                'T'=rpois(L,1/2)+1)
 
 #alpha_0 is the concentration parameter of CRP
-alpha_0 <- 10
+alpha_0 <- 30
 
 
 #simulate the clustering
@@ -97,6 +97,7 @@ calc_bcr_cell_like <- function(cell, B){
   exp(log_like)
 }
 
+
 ##################################################################################
 t_and_clust <- simulate_t_and_cl()
 
@@ -108,6 +109,4 @@ clusters_ <- t_and_clust$clust
 
 B <- simulate_B()
 BCR <- simulate_BCR()
-
-calc_bcr_model_like()
 
