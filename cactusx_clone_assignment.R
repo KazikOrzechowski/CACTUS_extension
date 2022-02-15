@@ -1,11 +1,13 @@
 source("cactusx_helper_funcs.R")
 source('sampling_t.R')
 
-cactus_clone_assignment <- function(A, D, Omega = NULL, BCR, n_clone = NULL, Psi = NULL, 
-                     relax_C = TRUE, relax_rate_fixed = NULL,
-                     n_chain = 1, n_proc = 1, 
-                     verbose = TRUE, relax_rate_prior = c(1,9),
-                     alpha_0 = 0.1, ...) {
+cactus_clone_assignment <- function(A, D, Omega = NULL, BCR, 
+                                    n_clone = NULL, Psi = NULL, 
+                                    relax_C = TRUE, relax_rate_fixed = NULL,
+                                    n_chain = 1,  
+                                    verbose = TRUE, relax_rate_prior = c(1,19),
+                                    alpha_0 = NULL, max_iter=20000,
+                                    i_G = 3, ...){
 
   ## check input data
   if (!(all(rownames(A) == rownames(D))))
@@ -38,32 +40,36 @@ cactus_clone_assignment <- function(A, D, Omega = NULL, BCR, n_clone = NULL, Psi
                           relax_C = relax_C, 
                           relax_rate_fixed = relax_rate_fixed,
                           relax_rate_prior = relax_rate_prior,
+                          max_iter = max_iter,
+                          i_G = i_G,
                           verbose = verbose)
   }
   
   #Average the results over n_chain models
-  ids_out <- ids_list[[1]]
-  ids_out$n_chain <- 1
-  if (n_chain > 1) {
-    for (ii in seq(2, n_chain)) {
-      ids_out$n_chain <- ids_out$n_chain + 1
-      ids_out$relax_rate <- ids_out$relax_rate + ids_list[[ii]]$relax_rate
-      ids_out$C_prob <- (ids_out$C_prob + 
-                                ids_list[[ii]]$C_prob)
-    }
-    ids_out$relax_rate <- ids_out$relax_rate / n_chain
-    ids_out$C_prob <- ids_out$C_prob / n_chain
-  }
-  return(ids_out)
+  # ids_out <- ids_list[[1]]
+  # ids_out$n_chain <- 1
+  # if (n_chain > 1) {
+  #   for (ii in seq(2, n_chain)) {
+  #     ids_out$n_chain <- ids_out$n_chain + 1
+  #     ids_out$relax_rate <- ids_out$relax_rate + ids_list[[ii]]$relax_rate
+  #     ids_out$C_prob <- (ids_out$C_prob + 
+  #                               ids_list[[ii]]$C_prob)
+  #   }
+  #   ids_out$relax_rate <- ids_out$relax_rate / n_chain
+  #   ids_out$C_prob <- ids_out$C_prob / n_chain
+  # }
+  
+  ids_list
 }
 
 #function describing the GIbbs sampling steps
 cactus_clone_id_Gibbs <- function(A, D, Omega, BCR, Psi=NULL, 
-                                  alpha_0=0.1, clusters_=NULL, t_=NULL,
+                                  alpha_0=NULL, clusters_=NULL, t_=NULL,
                                    relax_C=TRUE, relax_rate_fixed=NULL, 
-                                   relax_rate_prior=c(1, 9), keep_base_clone=TRUE,
+                                   relax_rate_prior=c(1, 19), keep_base_clone=TRUE,
                                    prior0=c(0.2, 99.8), prior1=c(0.45, 0.55),
-                                   min_iter=5000, max_iter=20000, buin_frac=0.5,
+                                   min_iter=5000, max_iter=40000, buin_frac=0.5,
+                                   i_G = i_G,
                                    relabel=FALSE, verbose=TRUE) {
 
   if(is.null(Psi)){
@@ -80,11 +86,16 @@ cactus_clone_id_Gibbs <- function(A, D, Omega, BCR, Psi=NULL,
   N <- dim(A)[1]             # number of variants
   M <- dim(A)[2]             # number of cells
   K <- dim(Omega)[2]         # number of clones
+  L <- dim(BCR)[2]           # length of BCR seq
   #Omega is the matrix of inferred mutation profiles
   #Psi is prior of cluster->clone assignment
   ########################################################################################################
   if(is.null(clusters_) || is.null(t_)){
-    t_and_clust <- simulate_t_and_cl()
+    print('Initial clustering.')
+
+    g <- matrix(0.01, nrow=L, ncol=4)
+    
+    t_and_clust <- ini_clust(BCR, M, L)
     
     #t_ is cell to cluster assign
     t_ <- t_and_clust$t
@@ -92,13 +103,28 @@ cactus_clone_id_Gibbs <- function(A, D, Omega, BCR, Psi=NULL,
     #clusters_ is the list of clusters containing their members
     clusters_ <- t_and_clust$clust
     
-    I <-  rcat(length(clusters_), Psi)
+    I <- rcat(length(clusters_), Psi)
+    
+    B <- array(0, dim=c(M, L, 4))
+    
+    for(cl in clusters_){
+      if(length(cl)>1){
+        up_prior <- as.matrix(g) + apply(BCR[cl,,], c(2,3), sum)
+      }
+      if(length(cl)==1){
+        up_prior <- as.matrix(g) + BCR[cl,,]
+      }
+      
+      B[cl,,] <- t(sapply(1:L, function(l){sample_dirichlet(1, up_prior[l,])}))
+    }
+    
+    alpha_0 <- 10000
   }
   ########################################################################################################
 
-  A[which(D == 0)] <- NA
-  D[which(D == 0)] <- NA
-  A[(D > 0) & is.na(A)] <- 0
+  #A[which(D == 0)] <- NA
+  #D[which(D == 0)] <- NA
+  #A[(D > 0) & is.na(A)] <- 0
   
   C1 <- Omega
   C0 <- 1 - Omega
@@ -162,27 +188,25 @@ cactus_clone_id_Gibbs <- function(A, D, Omega, BCR, Psi=NULL,
   ## Random initialization
   theta0_all[1,1] <- stats::rbeta(1, prior0[1], prior0[2])
   theta1_all[1, ] <- stats::rbeta(rep(1,n_element), prior1[,1], prior1[,2])
-  theta1 <- matrix(NA, nrow = N, ncol = M)
 
   
   ## Set parent env of all called functions to this env
+  environment(sample_I) <- environment()
   environment(sample_c_and_rr) <- environment()
   environment(sample_theta) <- environment()
   environment(sample_alpha_0) <- environment()
   environment(try_merge) <- environment()
   environment(try_split) <- environment()
   
-  
   ## Gibbs sampling
   for (it in 2:max_iter) {
     theta0 <- theta0_all[it - 1, 1]
-    theta1[idx_mat] <- theta1_all[it - 1,  ]
+    theta1 <- theta1_all[it - 1,  ]
     
     #perform non-conjugate split-merge moves
-    for(cl_it in 1:min(1,10*(max_iter-it)/max_iter)){
-      try_merge()
-      try_split()
-    }
+    sample_I()
+    try_merge()
+    try_split()
     
     assign_all_j[it, ] <- I[t_]
     
@@ -196,13 +220,17 @@ cactus_clone_id_Gibbs <- function(A, D, Omega, BCR, Psi=NULL,
     sample_theta()
     
     # Sample alpha_0
-    sample_alpha_0()
+    sample_alpha_0(alpha_prior=c(1000, 0.01))
+    
     alpha_0_all[it, 1] <- alpha_0
     
     # Calculate logLikelihood
-    logLik_all[it] <- get_logLik(A1, B1, C, assign_all_j[it, ], 
-                                 theta0_all[it,1], theta1_all[it,])
-    
+    if(TRUE){
+      logLik_all[it] <- get_logLik(A1, B1, C, assign_all_j[it, ], 
+                                   theta0_all[it,1], theta1_all[it,]) +
+                        get_logLik_BCR(BCR, B, clusters_, t_)
+      #print(paste0(it/max_iter*100, '% of max iterations.'))
+    }
     #Check convergence.
     #if ((it >= min_iter) && (it %% 100 == 0)) {
     #  Converged_all <- abs(Geweke_Z(prob_all[1:it, ])) <= 2
@@ -249,7 +277,7 @@ cactus_clone_id_Gibbs <- function(A, D, Omega, BCR, Psi=NULL,
   
   
   return_list <- list("theta0" = theta0, "theta1" = theta1,
-                      "alpha0" = alpha_0,
+                      "alpha0" = alpha_0_all,
                       "theta0_all" = as.matrix(theta0_all[1:it, ]),
                       "theta1_all" = as.matrix(theta1_all[1:it, ]),
                       "element" = idx_mat, "logLik" = logLik_all[1:it],

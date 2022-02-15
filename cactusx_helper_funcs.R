@@ -82,6 +82,47 @@ get_logLik <- function(A1, B1, C, Assign, theta0, theta1) {
 }
 
 
+get_logLik_BCR <- function(BCR, B, clusters_, t_){
+  log_lik <- 0
+  
+  for(cl in clusters_){
+    if(length(cl)>1){
+      nm <- apply(BCR[cl,,], c(2,3), sum)
+        
+      log_lik <- log_lik + 
+                 sum(sapply(cl, function(cell){
+                                sum(log(B[t_[cell],,][BCR[cell,,]==1]))
+                                })) +
+                 sum(lfactorial(apply(nm, 1, sum))) -
+                 sum(lfactorial(nm))
+    }
+    if(length(cl)==1){
+      log_lik <- log_lik + sum(log(B[t_[cl],,][BCR[cl,,]==1]))
+    }
+  }
+  
+  log_lik
+}
+
+sample_I <- function(){
+  I_it <- 1:length(clusters_)
+  for(i in 1:length(clusters_)){
+    if(length(clusters_[[i]])>0){
+      log_like <- sapply(1:K, function(k){
+        loglike_RNA(clusters_[[i]], k, C, theta1, theta0, A, D)
+      })
+      
+      #here we need to amplify, to not get zeros
+      like <- exp(log_like - max(log_like))
+      
+      I_it[i] <- rcat(1, like)
+    }
+  }
+  
+  I <<- I_it
+}
+
+
 sample_c_and_rr <- function(){
   if (it > 0.1 * min_iter){
     diff0 <- sum(Omega == C)
@@ -143,16 +184,53 @@ sample_theta <- function(){
                                      prior1[,2] + S4_wgt[idx_vec])
 }
 
-sample_alpha_0 <- function(){
+sample_alpha_0 <- function(alpha_prior=c(1,1)){
   # k is the number of non-empty clusters
   k <- sum(sapply(clusters_, length)>0)
   
   #sample new value of sigma
   xSigma <- rbeta(1, alpha_0+1, M)
-  p <- exp(log(k) - log(M) - log1p(-log(xSigma)) - log1p(k/(M*(1-log(xSigma)))))
-  if(rbinom(1,1,p)){
-    alpha_0 <<- rgamma(1, shape=k+1, rate=1-log(xSigma))
+  
+  y <- alpha_prior[1]
+  x <- alpha_prior[2]
+  
+  from_first <- (runif(1, max=y+k+M*(x-log(xSigma))) < y+k)
+  if(from_first){
+    alpha_0 <<- rgamma(1, shape=y+k, rate=x-log(xSigma))
   }else{
-    alpha_0 <<- rgamma(1, shape=k, rate=1-log(xSigma))
+    alpha_0 <<- rgamma(1, shape=y+k-1, rate=x-log(xSigma))
   }
+}
+
+
+ini_clust <- function(BCR, M, L){
+  dfBCR <- data.frame('a'=1:M)
+  
+  for(i in 1:(4*L)){
+    dfBCR[,i] <- 0 
+  }
+  
+  for(i in 1:M){
+    dfBCR[i,] <-  BCR[i,,][1:(4*L)]
+    
+  }
+  
+  ii <- do.call(grouping, dfBCR)
+  
+  same_clusts <- list()
+  same_t <- 1:M
+  
+  ends_ <- attr(ii,'ends')
+  
+  for(i in 1:length(ends_)){
+    if(i==1){
+      same_clusts[[i]] <- ii[1:ends_[i]]
+      same_t[same_clusts[[i]]] <- i
+    }else{
+      same_clusts[[i]] <- ii[(ends_[i-1]+1):ends_[i]]
+      same_t[same_clusts[[i]]] <- i
+    }
+  }
+  
+  list('clust'=same_clusts, 't'=same_t)
 }
