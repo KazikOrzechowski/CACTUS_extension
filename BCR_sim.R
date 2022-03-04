@@ -1,15 +1,10 @@
-if(!require('igraph')){
-  install.packages('igraph', lib='libraries')
-  library('igraph', lib.loc='libraries')
+for(pack in c('igraph', 'extraDistr', 'matrixStats')){
+  if(!require(pack, lib.loc='libraries', character_only=TRUE)){
+    install.packages(pack, lib='libraries')
+    library(pack, lib.loc='libraries', character_only=TRUE)
+  }
 }
-if(!require('extraDistr')){
-  install.packages('extraDistr', lib='libraries')
-  library('extraDistr', lib.loc='libraries')
-}
-if(!require('matrixStats')){
-  install.packages('matrixStats', lib='libraries')
-  library('matrixStats', lib.loc='libraries')
-}
+
 
 resample_few <- function(x, how_many) x[sample.int(length(x), how_many)]
 
