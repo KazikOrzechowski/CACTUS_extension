@@ -2,7 +2,7 @@ source('BCR_sim.R')
 source('cactusx_clone_assignment.R')
 
 
-for(pack in c('fossil', 'ggplot2', 'doParallel')){
+for(pack in c('sp', 'fossil', 'ggplot2', 'doParallel')){
   if(!require(pack, lib.loc='libraries', character.only = TRUE)){
     install.packages(pack, lib='libraries', dependencies = TRUE)
     library(pack, lib.loc='libraries', character.only = TRUE)
