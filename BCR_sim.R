@@ -1,6 +1,15 @@
-library('igraph')
-library('extraDistr')
-library('matrixStats')
+if(!require('igraph')){
+  install.packages('igraph')
+  library(igraph)
+}
+if(!require('extraDistr')){
+  install.packages('extraDistr')
+  library('extraDistr')
+}
+if(!require('matrixStats')){
+  install.packages('matrixStats')
+  library('matrixStats')
+}
 
 
 resample_few <- function(x, how_many) x[sample.int(length(x), how_many)]
