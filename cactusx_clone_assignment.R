@@ -2,16 +2,16 @@ source("cactusx_helper_funcs.R")
 source('sampling_t.R')
 
 if(!require('igraph')){
-  install.packages('igraph')
-  library(igraph)
+  install.packages('igraph', lib='libraries')
+  library('igraph', lib.loc='libraries')
 }
 if(!require('extraDistr')){
-  install.packages('extraDistr')
-  library('extraDistr')
+  install.packages('extraDistr', lib='libraries')
+  library('extraDistr', lib.loc='libraries')
 }
 if(!require('matrixStats')){
-  install.packages('matrixStats')
-  library('matrixStats')
+  install.packages('matrixStats', lib='libraries')
+  library('matrixStats', lib.loc='libraries')
 }
 
 cactus_clone_assignment <- function(A, D, Omega = NULL, BCR, 
