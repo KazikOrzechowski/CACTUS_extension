@@ -111,18 +111,18 @@ for(r_num in 1:nrow(params)){
     #calc and plot error rate. save mean error
     error_rate <- sapply(1:max_iter, function(it){sum(true_I[true_t] != assignments[[run_]]$assign_all_j[it,]) / num_cells})
     
-    pdf(file=paste0(save_path, str(run_), '_err_rate.pdf'), width=4, height=4)
-    print(ggplot() + geom_line(aes(x=1:max_iter, y=error_rate)))
-    dev.off()
+    #pdf(file=paste0(save_path, str(run_), '_err_rate.pdf'), width=4, height=4)
+    #print(ggplot() + geom_line(aes(x=1:max_iter, y=error_rate)))
+    #dev.off()
     
     metrics$error_rates[run_] <- mean(error_rate[(buin_frac*max_iter) : max_iter])
     
     #calc and plot C matrix reconstruction. save mean and 0.1 quantile.
     C_prob <- dbinom(true_C, 1, assignments[[run_]]$C_prob)
     
-    pdf(file=paste0(save_path, str(run_), '_C_prob.pdf'), width=4, height=4)
-    print(ggplot() + geom_point(aes(x=1:(num_clones*num_variants), y=C_prob)))
-    dev.off()
+    #pdf(file=paste0(save_path, str(run_), '_C_prob.pdf'), width=4, height=4)
+    #print(ggplot() + geom_point(aes(x=1:(num_clones*num_variants), y=C_prob)))
+    #dev.off()
     
     metrics$C_mean_aggre[run_] <- mean(C_prob)
     metrics$C_quant_aggre[run_] <- quantile(C_prob, probs=0.1)
@@ -133,18 +133,18 @@ for(r_num in 1:nrow(params)){
     data <- expand.grid(X=x, Y=y)
     data$prob <- as.vector(t(assignments[[run_]]$prob_mat_j[order(assignments[[run_]]$t),]))
     
-    pdf(file=paste0(save_path, str(run_), '_ass_conf.pdf'), width=4, height=4)
-    print(ggplot(data) + geom_tile(aes(X, Y, fill=prob)))
-    dev.off()
+    #pdf(file=paste0(save_path, str(run_), '_ass_conf.pdf'), width=4, height=4)
+    #print(ggplot(data) + geom_tile(aes(X, Y, fill=prob)))
+    #dev.off()
     
     #calc and save B profile reconstruction error
     inferred_B <- assignments[[run_]]$B[assignments[[run_]]$t,,]
     
     av_abs_err <- sapply(1:num_cells, function(cell){mean(abs(inferred_B[cell,,]-true_B[cell,,]))})
     
-    pdf(file=paste0(save_path, str(run_), '_B_err.pdf'), width=4, height=4)
-    print(ggplot() + geom_point(aes(x=1:num_cells, y=av_abs_err)))
-    dev.off()
+    #pdf(file=paste0(save_path, str(run_), '_B_err.pdf'), width=4, height=4)
+    #print(ggplot() + geom_point(aes(x=1:num_cells, y=av_abs_err)))
+    #dev.off()
     
     metrics$B_profile_errs[run_] <- mean(av_abs_err)
     
@@ -152,10 +152,10 @@ for(r_num in 1:nrow(params)){
     log_Lik <- assignments[[run_]]$logLik[2:max_iter]
     #log_Lik <- assignments[[run_]]$logLik[100*(1:(max_iter/100))]
     
-    pdf(file=paste0(save_path, str(run_), '_logLik.pdf'), width=4, height=4)
-    print(ggplot() + geom_line(aes(x=2:max_iter, y=log_Lik)))
+    #pdf(file=paste0(save_path, str(run_), '_logLik.pdf'), width=4, height=4)
+    #print(ggplot() + geom_line(aes(x=2:max_iter, y=log_Lik)))
     #ggplot() + geom_line(aes(x=1:(max_iter/100), y=log_Lik))
-    dev.off()
+    #dev.off()
     
     metrics$log_likes[run_] <- mean(log_Lik[(buin_frac*max_iter) : max_iter])
     
