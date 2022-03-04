@@ -12,13 +12,14 @@ params <- read.csv('sim_params.csv')
 #number of intermittent Gibbs sampling steps
 i_G <- 3
 
-max_iter <- 10000
+max_iter <- 100000
 buin_frac <- .5
 
-new_sim <- FALSE
+new_sim <- TRUE
 new_runs <- TRUE
 
-n_runs <- 6
+n_runs <- 12
+n_proc <- 12
 
 ################################################################################
 #start running simulations
@@ -33,15 +34,15 @@ for(r_num in 1:nrow(params)){
   sim_alpha_0 <- this_sim$alpha_0
   
   if(this_sim$new_g){
-    sim_g <- data.frame('A'=rpois(30,1/100)+1, 
-                        'C'=rpois(30,10)+1,
-                        'G'=rpois(30,1/100)+1,
-                        'T'=rpois(30,1/100)+1)
+    sim_g <- data.frame('A'=rpois(300,1/100)+1, 
+                        'C'=rpois(300,10)+1,
+                        'G'=rpois(300,1/100)+1,
+                        'T'=rpois(300,1/100)+1)
   }else{
-    sim_g <- data.frame('A'=rpois(30,1/100)+1, 
-                        'C'=rpois(30,200)+1,
-                        'G'=rpois(30,1/100)+1,
-                        'T'=rpois(30,1/100)+1)
+    sim_g <- data.frame('A'=rpois(300,1/100)+1, 
+                        'C'=rpois(300,200)+1,
+                        'G'=rpois(300,1/100)+1,
+                        'T'=rpois(300,1/100)+1)
   }
   
   ################################################################################
@@ -86,7 +87,7 @@ for(r_num in 1:nrow(params)){
                                            alpha_0=NULL,
                                            max_iter = max_iter,
                                            i_G= i_G,
-                                           n_proc=6
+                                           n_proc=n_proc
                                            )
   }else{
     assignments <- readRDS(file=paste0(save_path, '_runs.RData'))

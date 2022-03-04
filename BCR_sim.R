@@ -69,7 +69,7 @@ simulate_BCR <- function(M, L, B, t_){
 }
 
 
-data_simulation <- function(L= 30,
+data_simulation <- function(L= 300,
                             M= 200,
                             K= 3,
                             N= 100,
