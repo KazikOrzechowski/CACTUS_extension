@@ -1,6 +1,7 @@
 source('BCR_sim.R')
 source('cactusx_clone_assignment.R')
 
+.libPaths('libraries')
 
 for(pack in c('sp', 'fossil', 'ggplot2', 'doParallel')){
   if(!require(pack, lib.loc='libraries', character.only = TRUE)){
