@@ -1,6 +1,6 @@
 for(pack in c('igraph', 'extraDistr', 'matrixStats')){
   if(!require(pack, lib.loc='libraries', character.only=TRUE)){
-    install.packages(pack, lib='libraries')
+    install.packages(pack, lib='libraries', dependencies=TRUE)
     library(pack, lib.loc='libraries', character.only=TRUE)
   }
 }
