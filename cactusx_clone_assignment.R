@@ -1,6 +1,19 @@
 source("cactusx_helper_funcs.R")
 source('sampling_t.R')
 
+if(!require('igraph')){
+  install.packages('igraph')
+  library(igraph)
+}
+if(!require('extraDistr')){
+  install.packages('extraDistr')
+  library('extraDistr')
+}
+if(!require('matrixStats')){
+  install.packages('matrixStats')
+  library('matrixStats')
+}
+
 cactus_clone_assignment <- function(A, D, Omega = NULL, BCR, 
                                     n_clone = NULL, Psi = NULL, 
                                     relax_C = TRUE, relax_rate_fixed = NULL,
