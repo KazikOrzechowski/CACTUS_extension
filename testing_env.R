@@ -3,7 +3,7 @@ source('cactusx_clone_assignment.R')
 
 
 for(pack in c('fossil', 'ggplot2', 'doParallel')){
-  if(!require(pack, character.only = TRUE)){
+  if(!require(pack, lib.loc='libraries', character.only = TRUE)){
     install.packages(pack, lib='libraries')
     library(pack, lib.loc='libraries', character.only = TRUE)
   }
