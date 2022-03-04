@@ -72,7 +72,7 @@ simulate_BCR <- function(M, L, B, t_){
 data_simulation <- function(L= 30,
                             M= 200,
                             K= 3,
-                            N= 20,
+                            N= 100,
                             g= data.frame('A'=rpois(L,1/100)+1, 
                                 'C'=rpois(L,1000)+1,
                                 'G'=rpois(L,1/100)+1,

@@ -1,0 +1,5 @@
+"av_reads","bcr_mut_prop","mut_freq","alpha_0","new_g","type"
+0.01,0.3,0.3,4,FALSE,"reference"
+0.001,0.3,0.3,4,FALSE,"low_reads"
+0.01,0.3,0.3,40,FALSE,"sparse"
+0.01,0.3,0.3,4,TRUE,"uncertain"

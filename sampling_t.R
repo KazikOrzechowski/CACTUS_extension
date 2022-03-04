@@ -1,4 +1,4 @@
-
+logSumExp <- matrixStats::logSumExp
 
 try_split <- function(){
   #pick a cluster to split proportional to its size. Can't split a cluster < 2
@@ -6,7 +6,7 @@ try_split <- function(){
                                       if(length(cluster)>1){length(cluster)/M}else{0}
                                       })
   if(!any(p_clusters>0)){
-    print('No clusters of 2 or more!')
+    #print('No clusters of 2 or more!')
     return()
   }
   chosen_ind <- sample(length(clusters_), 1, prob=p_clusters)
@@ -65,7 +65,7 @@ try_split <- function(){
   
   #if accepted, assign first empty cluster to proposed cluster with cell i
   if(accept){
-    print('Split accepted')
+    #print('Split accepted')
     first_empty <- which(sapply(clusters_, length)==0, arr.ind=TRUE)[1]
     cluster_i <- chosen_clust[t_propose$clust == 0]
     cluster_j <- chosen_clust[t_propose$clust == 1]
@@ -94,7 +94,7 @@ try_merge <- function(){
   
   #if only one cluster exists it has p=1 and we cannot merge
   if(any(p_clusters==1)){
-    print('Only one clust!')
+    #print('Only one clust!')
     return()
   }
   chosen <- sample(length(clusters_), 2, prob=p_clusters)
@@ -138,7 +138,7 @@ try_merge <- function(){
                             n_split, B_split, I_split)
   
   if(accept){
-    print('Merge accepted')
+    #print('Merge accepted')
     B[t_[j],,] <<- B_proposed
     I[t_[j]] <<- I_proposed
     clusters_[[t_[j]]] <<- chosen_cells
@@ -168,8 +168,8 @@ launch_split <- function(i, j, chosen_clust){
   
   #B_split are the nuc freqs of split clusters
   B_split <- array(0, dim=c(2, L, 4))
-  B_split[1,,] <- t(sapply(1:L, function(l){sample_dirichlet(1, upi[l,])}))
-  B_split[2,,] <- t(sapply(1:L, function(l){sample_dirichlet(1, upj[l,])}))
+  B_split[1,,] <- t(sapply(1:L, function(l){igraph::sample_dirichlet(1, upi[l,])}))
+  B_split[2,,] <- t(sapply(1:L, function(l){igraph::sample_dirichlet(1, upj[l,])}))
   
   #I_split are the cluster-clone assignments of split clusters
   I_split <- 1:2
@@ -180,7 +180,7 @@ launch_split <- function(i, j, chosen_clust){
     })
     #here we need to amplify, to not get zeros
     log_like <- log_like - max(log_like)
-    I_split[i_] <- rcat(1, exp(log_like)) 
+    I_split[i_] <- extraDistr::rcat(1, exp(log_like)) 
   }
   
   #do i_G intermediate Gibbs sampling steps
@@ -227,7 +227,7 @@ launch_split <- function(i, j, chosen_clust){
         up_prior <- as.matrix(g) + BCR[clust_i,,]
       }
       
-      B_split[i_,,] <- t(sapply(1:L, function(l){sample_dirichlet(1, up_prior[l,])}))
+      B_split[i_,,] <- t(sapply(1:L, function(l){igraph::sample_dirichlet(1, up_prior[l,])}))
     }
     for(i_ in 1:2){
       log_like <- sapply(1:K, function(k){
@@ -235,7 +235,7 @@ launch_split <- function(i, j, chosen_clust){
         })
       #here we need to amplify, to not get zeros
       log_like <- log_like - max(log_like)
-      I_split[i_] <- rcat(1, exp(log_like)) 
+      I_split[i_] <- extraDistr::rcat(1, exp(log_like)) 
     }
   }
   
@@ -247,11 +247,11 @@ launch_merge <- function(chosen_clust){
   up_prior <- as.matrix(g) + apply(BCR[chosen_clust,,], 
                                    c(2,3), 
                                    sum)
-  B_merge <- t(sapply(1:L, function(l){sample_dirichlet(1, up_prior[l,])}))
+  B_merge <- t(sapply(1:L, function(l){igraph::sample_dirichlet(1, up_prior[l,])}))
   
   log_like <- sapply(1:K, function(k){loglike_RNA(chosen_clust, k, C, theta1, theta0, A, D)})
   log_like <- log_like - max(log_like)
-  I_merge <- rcat(1, exp(log_like))
+  I_merge <- extraDistr::rcat(1, exp(log_like))
   
   list('B'=B_merge, 'I'=I_merge)
 }
@@ -309,7 +309,7 @@ propose_split <- function(chosen_clust, i, j,
       up_prior <- as.matrix(g) + BCR[clust_i,,]
     }
     
-    B_split[i_,,] <- t(sapply(1:L, function(l){sample_dirichlet(1, up_prior[l,])}))
+    B_split[i_,,] <- t(sapply(1:L, function(l){igraph::sample_dirichlet(1, up_prior[l,])}))
   }
   
   for(i_ in 1:2){
@@ -319,7 +319,7 @@ propose_split <- function(chosen_clust, i, j,
     
     #here we need to amplify, to not get zeros
     like <- exp(log_like - max(log_like))
-    I_split[i_] <- rcat(1, like)
+    I_split[i_] <- extraDistr::rcat(1, like)
   }
   
   list('t'=t_split,
@@ -470,7 +470,6 @@ accept_MH_merge <- function(t_split, i, j,
   #calc log of fraction p_T
   log_pt <- lchoose(sum(n_split)-2, n_split[1]-1) + log(sum(n_split)-1) + log_p_propose
   
-  print(alpha_0)
   #calc the factor
   R <- K /alpha_0 /(sum(n_split)-1) *n_split[1]**2 *n_split[2]**2 /M *(sum(sapply(clusters_, inv_len))**2)
   

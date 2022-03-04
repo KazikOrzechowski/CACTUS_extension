@@ -47,10 +47,10 @@ devianceIC <- function(logLik_all, logLik_post) {
   
   DIC = DIC_Gelman
   
-  cat(paste("DIC:", round(DIC, 2), 
-            "D_mean:", round(-2 * logLik_mean, 2), 
-            "D_post:", round(-2 * logLik_post, 2), 
-            "logLik_var:", round(logLik_var, 2), "\n"))
+  #cat(paste("DIC:", round(DIC, 2), 
+  #          "D_mean:", round(-2 * logLik_mean, 2), 
+  #          "D_post:", round(-2 * logLik_post, 2), 
+  #          "logLik_var:", round(logLik_var, 2), "\n"))
   
   list("DIC" = DIC, 
        "logLik_var" = logLik_var, 
@@ -78,6 +78,12 @@ get_logLik <- function(A1, B1, C, Assign, theta0, theta1) {
   
   logLik <- (sum(log(Lik_mat), na.rm = TRUE) + 
                sum(lchoose(A1 + B1, A1), na.rm = TRUE))
+  
+  if(is.infinite(logLik)){
+    print(Lik_mat)
+    stop()
+  }
+  
   logLik
 }
 
@@ -101,6 +107,16 @@ get_logLik_BCR <- function(BCR, B, clusters_, t_){
     }
   }
   
+  if(is.infinite(log_lik)){
+    print('bcr err')
+    for(cl in clusters_){
+      if(is.infinite(sum(log(B[t_[cl],,][BCR[cl,,]==1])))){
+        print(B[t_[cl],,])
+        print(BCR[cl,,])
+      }
+    }
+    stop()
+  }
   log_lik
 }
 
@@ -115,7 +131,7 @@ sample_I <- function(){
       #here we need to amplify, to not get zeros
       like <- exp(log_like - max(log_like))
       
-      I_it[i] <- rcat(1, like)
+      I_it[i] <- extraDistr::rcat(1, like)
     }
   }
   

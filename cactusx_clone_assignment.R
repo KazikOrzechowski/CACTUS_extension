@@ -30,12 +30,14 @@ cactus_clone_assignment <- function(A, D, Omega = NULL, BCR,
   #  message(length(common_vars), " variants used for cell assignment.")
   
   ## pass data to specific functions
-  #doMC::registerDoMC(n_proc)
-  `%dopar%` <- foreach::`%dopar%`
+  registerDoParallel(cores=6)
   
+  cactus_clone_id_Gibbs <- get('cactus_clone_id_Gibbs')
   #Do Gibbs sampling n_chain times independently
-  ids_list <- foreach::foreach(ii = 1:n_chain) %dopar% {
-    cactus_clone_id_Gibbs(A=A, D=D, Omega=Omega, BCR = BCR, 
+  ids_list <- foreach::foreach(i=1:n_chain, .export = ls(environment())) %dopar% {
+    source("cactusx_helper_funcs.R")
+    source('sampling_t.R')
+    cactus_clone_id_Gibbs(A=A, D=D, Omega=Omega, BCR=BCR, 
                           Psi = Psi, alpha_0=alpha_0,
                           relax_C = relax_C, 
                           relax_rate_fixed = relax_rate_fixed,
@@ -44,7 +46,6 @@ cactus_clone_assignment <- function(A, D, Omega = NULL, BCR,
                           i_G = i_G,
                           verbose = verbose)
   }
-  
   #Average the results over n_chain models
   # ids_out <- ids_list[[1]]
   # ids_out$n_chain <- 1
@@ -62,24 +63,25 @@ cactus_clone_assignment <- function(A, D, Omega = NULL, BCR,
   ids_list
 }
 
-#function describing the GIbbs sampling steps
+
+#function describing the Gibbs sampling steps
 cactus_clone_id_Gibbs <- function(A, D, Omega, BCR, Psi=NULL, 
                                   alpha_0=NULL, clusters_=NULL, t_=NULL,
-                                   relax_C=TRUE, relax_rate_fixed=NULL, 
-                                   relax_rate_prior=c(1, 19), keep_base_clone=TRUE,
-                                   prior0=c(0.2, 99.8), prior1=c(0.45, 0.55),
-                                   min_iter=5000, max_iter=40000, buin_frac=0.5,
-                                   i_G = i_G,
-                                   relabel=FALSE, verbose=TRUE) {
-
+                                  relax_C=TRUE, relax_rate_fixed=NULL, 
+                                  relax_rate_prior=c(1, 19), keep_base_clone=TRUE,
+                                  prior0=c(0.2, 99.8), prior1=c(0.45, 0.55),
+                                  min_iter=5000, max_iter=40000, buin_frac=0.5,
+                                  i_G = i_G,
+                                  relabel=FALSE, verbose=TRUE) {
+  
   if(is.null(Psi)){
     Psi <- rep(1/ncol(Omega), ncol(Omega))
-    }
+  }
   if(dim(A)[1] != dim(D)[1] || dim(A)[2] != dim(D)[2] ||
      dim(A)[1] != dim(Omega)[1] || dim(Omega)[2] != length(Psi)){
-      stop(paste0("A and D must have the same size;\n ",
-                  "A and Omega must have the same number of variants;\n",
-                  "Omega and Psi must have the same number of clones"))
+    stop(paste0("A and D must have the same size;\n ",
+                "A and Omega must have the same number of variants;\n",
+                "Omega and Psi must have the same number of clones"))
   }
   
   ## preprocessing
@@ -91,9 +93,9 @@ cactus_clone_id_Gibbs <- function(A, D, Omega, BCR, Psi=NULL,
   #Psi is prior of cluster->clone assignment
   ########################################################################################################
   if(is.null(clusters_) || is.null(t_)){
-    print('Initial clustering.')
-
-    g <- matrix(0.01, nrow=L, ncol=4)
+    #print('Initial clustering.')
+    
+    g <- matrix(1, nrow=L, ncol=4)
     
     t_and_clust <- ini_clust(BCR, M, L)
     
@@ -103,11 +105,13 @@ cactus_clone_id_Gibbs <- function(A, D, Omega, BCR, Psi=NULL,
     #clusters_ is the list of clusters containing their members
     clusters_ <- t_and_clust$clust
     
-    I <- rcat(length(clusters_), Psi)
+    I <- extraDistr::rcat(length(clusters_), Psi)
     
     B <- array(0, dim=c(M, L, 4))
     
-    for(cl in clusters_){
+    for(i_ in 1:length(clusters_)){
+      cl <- clusters_[[i_]]
+      
       if(length(cl)>1){
         up_prior <- as.matrix(g) + apply(BCR[cl,,], c(2,3), sum)
       }
@@ -115,13 +119,13 @@ cactus_clone_id_Gibbs <- function(A, D, Omega, BCR, Psi=NULL,
         up_prior <- as.matrix(g) + BCR[cl,,]
       }
       
-      B[cl,,] <- t(sapply(1:L, function(l){sample_dirichlet(1, up_prior[l,])}))
+      B[i_,,] <- t(sapply(1:L, function(l){igraph::sample_dirichlet(1, up_prior[l,])}))
     }
     
-    alpha_0 <- 10000
+    alpha_0 <- 100
   }
   ########################################################################################################
-
+  
   #A[which(D == 0)] <- NA
   #D[which(D == 0)] <- NA
   #A[(D > 0) & is.na(A)] <- 0
@@ -175,7 +179,7 @@ cactus_clone_id_Gibbs <- function(A, D, Omega, BCR, Psi=NULL,
   alpha_0_all <- matrix(0, nrow = max_iter, ncol = 1)
   
   relax_rate <- relax_rate_prior[1] / (relax_rate_prior[1] + 
-                                             relax_rate_prior[2])
+                                         relax_rate_prior[2])
   
   C <- Omega
   C_prior <- Omega
@@ -183,12 +187,12 @@ cactus_clone_id_Gibbs <- function(A, D, Omega, BCR, Psi=NULL,
   C_prior[Omega == 0] <- relax_rate
   C_prior_oddlog <- log(C_prior) - log(1 - C_prior)
   Iden_mat <- matrix(0, nrow = M, ncol = K)
-
+  
   
   ## Random initialization
   theta0_all[1,1] <- stats::rbeta(1, prior0[1], prior0[2])
   theta1_all[1, ] <- stats::rbeta(rep(1,n_element), prior1[,1], prior1[,2])
-
+  
   
   ## Set parent env of all called functions to this env
   environment(sample_I) <- environment()
@@ -220,7 +224,7 @@ cactus_clone_id_Gibbs <- function(A, D, Omega, BCR, Psi=NULL,
     sample_theta()
     
     # Sample alpha_0
-    sample_alpha_0(alpha_prior=c(1000, 0.01))
+    sample_alpha_0(alpha_prior=c(10, 0.1))
     
     alpha_0_all[it, 1] <- alpha_0
     
@@ -228,7 +232,7 @@ cactus_clone_id_Gibbs <- function(A, D, Omega, BCR, Psi=NULL,
     if(TRUE){
       logLik_all[it] <- get_logLik(A1, B1, C, assign_all_j[it, ], 
                                    theta0_all[it,1], theta1_all[it,]) +
-                        get_logLik_BCR(BCR, B, clusters_, t_)
+        get_logLik_BCR(BCR, B, clusters_, t_)
       #print(paste0(it/max_iter*100, '% of max iterations.'))
     }
     #Check convergence.
@@ -241,7 +245,7 @@ cactus_clone_id_Gibbs <- function(A, D, Omega, BCR, Psi=NULL,
     #  if (mean(Converged_all, na.rm = TRUE) > 0.995) {break}
     #}
   }
-  print(paste("Converged in", it, "iterations."))
+  #print(paste("Converged in", it, "iterations."))
   
   ## Return values
   n_buin = ceiling(it * buin_frac)
@@ -295,5 +299,6 @@ cactus_clone_id_Gibbs <- function(A, D, Omega, BCR, Psi=NULL,
   
   return_list
 }
+
 
 
