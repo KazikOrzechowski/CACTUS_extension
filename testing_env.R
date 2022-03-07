@@ -56,7 +56,8 @@ for(r_num in 1:nrow(params)){
   if(new_sim){    
     simulated_data <- data_simulation(alpha_0=sim_alpha_0,
                                       mut_freq=mut_freq,
-                                      av_reads=av_reads)
+                                      av_reads=av_reads,
+                                      g=sim_g)
   }else{
     simulated_data <- readRDS(file=paste0(save_path, '_sim_data.RData'))
   }
