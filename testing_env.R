@@ -164,7 +164,7 @@ for(r_num in 1:nrow(params)){
     #ggplot() + geom_line(aes(x=1:(max_iter/100), y=log_Lik))
     #dev.off()
     
-    metrics$log_likes[run_] <- mean(log_Lik[(buin_frac*max_iter) : max_iter])
+    metrics$log_likes[run_] <- mean(log_Lik[(buin_frac*max_iter) : (max_iter-1)])
     
     #calc adj rand index
     metrics$adj_rand_inds[run_] <- adj.rand.index(assignments[[run_]]$t, true_t)
