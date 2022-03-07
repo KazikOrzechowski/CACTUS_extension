@@ -19,7 +19,7 @@ params <- read.csv('sim_params.csv')
 i_G <- 3
 
 max_iter <- 100000
-buin_frac <- .5
+buin_frac <- .75
 
 new_sim <- TRUE
 new_runs <- TRUE
