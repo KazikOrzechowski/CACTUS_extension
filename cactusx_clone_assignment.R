@@ -37,7 +37,7 @@ cactus_clone_assignment <- function(A, D, Omega = NULL, BCR,
   #  message(length(common_vars), " variants used for cell assignment.")
   
   ## pass data to specific functions
-  registerDoParallel(cores=6)
+  registerDoParallel(cores=12)
   
   cactus_clone_id_Gibbs <- get('cactus_clone_id_Gibbs')
   #Do Gibbs sampling n_chain times independently
@@ -129,7 +129,7 @@ cactus_clone_id_Gibbs <- function(A, D, Omega, BCR, Psi=NULL,
       B[i_,,] <- t(sapply(1:L, function(l){igraph::sample_dirichlet(1, up_prior[l,])}))
     }
     
-    alpha_0 <- 100
+    alpha_0 <- 100000
   }
   ########################################################################################################
   
@@ -231,7 +231,7 @@ cactus_clone_id_Gibbs <- function(A, D, Omega, BCR, Psi=NULL,
     sample_theta()
     
     # Sample alpha_0
-    sample_alpha_0(alpha_prior=c(10, 0.1))
+    sample_alpha_0(alpha_prior=c(1000, 0.01))
     
     alpha_0_all[it, 1] <- alpha_0
     
