@@ -1,5 +1,5 @@
-source("C:/My_model/CACTUS/cactusx_helper_funcs.R")
-source("C:/Users/kazik/Documents/RStudio/BCR_sim.R")
+source("cactusx_helper_funcs.R")
+source("BCR_sim.R")
 
 for(pack in c('fossil', 'ggplot2', 'doParallel')){
   if(!require(pack, character.only = TRUE)){
@@ -266,7 +266,7 @@ cactus_clone_id_Gibbs <- function(A, D, Omega, BCR, Psi=NULL,
 
 ###############################################################################
 #set hyperparameters
-params <- read.csv('C:/My_model/CACTUS/sim_params.csv')
+params <- read.csv('cactus_sim_params.csv')
 
 max_iter <- 100000
 buin_frac <- .75
@@ -307,7 +307,7 @@ for(r_num in 1:nrow(params)){
                                       mut_freq=mut_freq,
                                       av_reads=av_reads)
   }else{
-    simulated_data <- readRDS(file=paste0(save_path, '_sim_data.RData'))
+    simulated_data <- readRDS(file=paste0('symulacje/', save_path, '_sim_data.RData'))
   }
   ###########################################################################
   #observed variables
@@ -350,8 +350,8 @@ for(r_num in 1:nrow(params)){
   
   ###############################################################################
   #save results and plots
-  saveRDS(simulated_data, file=paste0(save_path, '_sim_data.RData'))
-  saveRDS(assignments, file=paste0(save_path, "_runs.RData"))
+  saveRDS(simulated_data, file=paste0('symulacje/', save_path, '_sim_data.RData'))
+  saveRDS(assignments, file=paste0('symulacje/', save_path, "_base_runs.RData"))
   
   metrics <- data.frame(sim_type=save_path,
                         run=1:n_runs,
