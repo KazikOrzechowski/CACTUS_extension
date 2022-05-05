@@ -1,7 +1,7 @@
 source("cactusx_helper_funcs.R")
 source("BCR_sim.R")
 
-for(pack in c('fossil', 'ggplot2', 'doParallel')){
+for(pack in c('ggplot2', 'doParallel')){
   if(!require(pack, character.only = TRUE)){
     install.packages(pack, lib='libraries', dependencies = TRUE)
     library(pack, lib.loc='libraries', character.only = TRUE)
@@ -19,11 +19,6 @@ if(!require('extraDistr')){
 if(!require('matrixStats')){
   install.packages('matrixStats', lib='libraries')
   library('matrixStats', lib.loc='libraries')
-}
-
-if(!require('stableGR')){
-  install.packages('stableGR', lib='libraries')
-  library('stableGR', lib.loc='libraries')
 }
 
 loglike_RNA <- function(cells, clone, C, theta1, theta0, A, D){
@@ -334,7 +329,6 @@ for(r_num in 1:nrow(params)){
   if(new_runs){
     registerDoParallel(cores=n_proc)
     
-    n.eff <- get('n.eff')
     assignments <- foreach::foreach(i=1:n_runs, .export = ls(environment())) %dopar% {
                      cactus_clone_id_Gibbs(A = sim_A,
                                            D = sim_D,
@@ -366,18 +360,18 @@ for(r_num in 1:nrow(params)){
     #calc and plot error rate. save mean error
     error_rate <- sapply(1:max_iter, function(it){sum(true_I[true_t] != assignments[[run_]]$assign_all_j[it,]) / num_cells})
     
-    pdf(file=paste0(save_path, str(run_), '_err_rate.pdf'), width=4, height=4)
-    print(ggplot() + geom_line(aes(x=1:max_iter, y=error_rate)))
-    dev.off()
+    #pdf(file=paste0(save_path, str(run_), '_err_rate.pdf'), width=4, height=4)
+    #print(ggplot() + geom_line(aes(x=1:max_iter, y=error_rate)))
+    #dev.off()
     
     metrics$error_rates[run_] <- mean(error_rate[(buin_frac*max_iter) : max_iter])
     
     #calc and plot C matrix reconstruction. save mean and 0.1 quantile.
     C_prob <- dbinom(true_C, 1, assignments[[run_]]$C_prob)
     
-    pdf(file=paste0(save_path, str(run_), '_C_prob.pdf'), width=4, height=4)
-    print(ggplot() + geom_point(aes(x=1:(num_clones*num_variants), y=C_prob)))
-    dev.off()
+    #pdf(file=paste0(save_path, str(run_), '_C_prob.pdf'), width=4, height=4)
+    #print(ggplot() + geom_point(aes(x=1:(num_clones*num_variants), y=C_prob)))
+    #dev.off()
     
     metrics$C_mean_aggre[run_] <- mean(C_prob)
     metrics$C_quant_aggre[run_] <- quantile(C_prob, probs=0.1)
@@ -388,18 +382,18 @@ for(r_num in 1:nrow(params)){
     data <- expand.grid(X=x, Y=y)
     data$prob <- as.vector(t(assignments[[run_]]$prob_mat_j[order(assignments[[run_]]$t),]))
     
-    pdf(file=paste0(save_path, str(run_), '_ass_conf.pdf'), width=4, height=4)
-    print(ggplot(data) + geom_tile(aes(X, Y, fill=prob)))
-    dev.off()
+    #pdf(file=paste0(save_path, str(run_), '_ass_conf.pdf'), width=4, height=4)
+    #print(ggplot(data) + geom_tile(aes(X, Y, fill=prob)))
+    #dev.off()
     
     #plot and save data log-likelihood
     log_Lik <- assignments[[run_]]$logLik[2:max_iter]
     #log_Lik <- assignments[[run_]]$logLik[100*(1:(max_iter/100))]
     
-    pdf(file=paste0(save_path, str(run_), '_logLik.pdf'), width=4, height=4)
-    print(ggplot() + geom_line(aes(x=2:max_iter, y=log_Lik)))
+    #pdf(file=paste0(save_path, str(run_), '_logLik.pdf'), width=4, height=4)
+    #print(ggplot() + geom_line(aes(x=2:max_iter, y=log_Lik)))
     #ggplot() + geom_line(aes(x=1:(max_iter/100), y=log_Lik))
-    dev.off()
+    #dev.off()
     
     metrics$log_likes[run_] <- mean(log_Lik[(buin_frac*max_iter) : (max_iter-1)])
     
@@ -407,7 +401,7 @@ for(r_num in 1:nrow(params)){
     metrics$adj_rand_inds[run_] <- adj.rand.index(assignments[[run_]]$t, true_t)
   }
   
-  saveRDS(metrics, file=paste0(save_path, '_metrics.RData'))
+  saveRDS(metrics, file=paste0('metrics/', save_path, '_base_metrics.RData'))
   
   #free memory for next simulation and runs
   assignments <- NULL
